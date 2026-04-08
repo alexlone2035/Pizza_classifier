@@ -1,5 +1,6 @@
 from PIL import Image
 
+
 class PizzaInspector:
     def __init__(self, classifier, detector):
         self.classifier = classifier
@@ -77,38 +78,37 @@ class PizzaInspector:
             image_pil = Image.open(image_path).convert('RGB')
             pizza_type, conf = self.classifier.predict(image_pil)
             raw_ingredients, yolo_data = self.detector.detect(image_path)
+
             counts = {}
             for group, keys in self.INGREDIENT_GROUPS.items():
                 counts[group] = sum(raw_ingredients.get(k, 0) for k in keys)
+
             status = "OK"
             reason = "С пиццей все в порядке."
             problematic_ingredients = []
             required_ingredients = self.PIZZA_RULES.get(pizza_type, ["any"])
 
+            meat_groups = ['pepperoni', 'chicken', 'bacon', 'ham', 'shrimp']
+
             if required_ingredients == []:
-                meat_groups = ['pepperoni', 'chicken', 'bacon', 'ham', 'shrimp']
                 for meat in meat_groups:
                     if counts[meat] > 0:
                         problematic_ingredients.append(meat)
                 if problematic_ingredients:
                     status = "NOT_OK"
-                    reason = f"{problematic_ingredients}"
+                    reason = f"Брак! Найдено мясо в сырной/постной пицце: {', '.join(problematic_ingredients)}"
+
             elif required_ingredients == ["any"]:
-                for group_name, amount in counts.items():
-                    if group_name != 'cheese' and 0 < amount < 8:
-                        problematic_ingredients.append(group_name)
-                if problematic_ingredients:
-                    status = "NOT_OK"
-                    reason = f"{problematic_ingredients}"
+                pass
 
             else:
-                for req in required_ingredients:
-                    if counts[req] < 8:
-                        problematic_ingredients.append(req)
+                for meat in meat_groups:
+                    if meat not in required_ingredients and counts[meat] > 1:
+                        problematic_ingredients.append(meat)
 
                 if problematic_ingredients:
                     status = "NOT_OK"
-                    reason = f"{problematic_ingredients}"
+                    reason = f"Брак! Найдены чужие ингредиенты: {', '.join(problematic_ingredients)}"
 
             return {
                 "success": True,

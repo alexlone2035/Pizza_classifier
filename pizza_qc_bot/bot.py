@@ -8,9 +8,6 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes, filters
 )
 
-# ─────────────────────────────────────────────
-# КОНФИГ
-# ─────────────────────────────────────────────
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     level=logging.INFO
@@ -20,60 +17,46 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-API_BASE_URL   = os.getenv("API_BASE_URL")     # http://api:8000
-API_KEY        = os.getenv("API_KEY")
+API_BASE_URL = os.getenv("API_BASE_URL")
+API_KEY = os.getenv("API_KEY")
 
 if not TELEGRAM_TOKEN or not API_BASE_URL or not API_KEY:
-    raise ValueError("Проверьте переменные окружения (Token, API_URL, Key)")
+    raise ValueError("Check env variables")
 
-PREDICT_URL  = f"{API_BASE_URL}/predict"
+PREDICT_URL = f"{API_BASE_URL}/predict"
 FEEDBACK_URL = f"{API_BASE_URL}/feedback"
 
 user_sessions: dict = {}
 
-# ─────────────────────────────────────────────
-# ОТПРАВКА В API (ФОТО + CHAT_ID)
-# ─────────────────────────────────────────────
-async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
-    logger.info(f"Отправка в API: {PREDICT_URL} для пользователя {user_id}")
 
+async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
     headers = {"Authorization": f"Bearer {API_KEY}"}
 
     async with aiohttp.ClientSession() as session:
         form = aiohttp.FormData()
-        
-        # Отправляем файл
         form.add_field(
             "file",
             image_bytes,
             filename="pizza.jpg",
             content_type="image/jpeg"
         )
-        
-        # Отправляем chat_id (сокомандник получит его в request.form)
         form.add_field("chat_id", str(user_id))
 
         try:
             async with session.post(
-                PREDICT_URL,
-                data=form,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30)
+                    PREDICT_URL,
+                    data=form,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 if resp.status == 200:
-                    result = await resp.json()
-                    return result
+                    return await resp.json()
                 else:
-                    text = await resp.text()
-                    logger.error(f"Ошибка API {resp.status}: {text}")
-                    return {"error": True, "message": f"Ошибка сервера: {resp.status}"}
+                    return {"success": False, "reason": f"Ошибка сервера: {resp.status}"}
         except Exception as e:
-            return {"error": True, "message": f"Ошибка соединения: {str(e)}"}
+            return {"success": False, "reason": f"Ошибка соединения: {str(e)}"}
 
 
-# ─────────────────────────────────────────────
-# ФОРМАТ ОТВЕТА (РУЧНОЙ СЛОВАРЬ)
-# ─────────────────────────────────────────────
 def format_response(api_result: dict) -> str:
     PIZZA_MAP = {
         "alfredo": "Альфредо", "bavarskaya": "Баварская", "bolshayabonanza": "Большая Бонанза",
@@ -99,34 +82,37 @@ def format_response(api_result: dict) -> str:
         "vetchinaibekon": "Ветчина и бекон", "vetchinaigriby": "Ветчина и грибы"
     }
     raw_type = api_result.get('pizza_type', '').lower().strip()
-    return PIZZA_MAP.get(raw_type, raw_type.replace('_', ' ').capitalize())
+    pizza_name = PIZZA_MAP.get(raw_type, raw_type.replace('_', ' ').capitalize())
 
-# ─────────────────────────────────────────────
-# ОБРАБОТЧИКИ ТЕЛЕГРАМ
-# ─────────────────────────────────────────────
+    status = api_result.get('status', '')
+    reason = api_result.get('reason', '')
+    status_icon = "✅" if status == "OK" else "❌"
+
+    return f"{pizza_name}\nСтатус: {status_icon} {status}\nПричина: {reason}"
+
+
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Привет! Пришли фото пиццы, и я определю её вид.")
+
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     msg = await update.message.reply_text("⏳ Нейросеть думает...")
 
-    # Скачиваем фото в память
     photo_file = await update.message.photo[-1].get_file()
     async with aiohttp.ClientSession() as session:
         async with session.get(photo_file.file_path) as resp:
             image_bytes = await resp.read()
 
-    # Отправляем сокоманднику (фото + ID)
     api_result = await send_to_model_api(image_bytes, user_id)
 
-    if api_result.get("error"):
-        await msg.edit_text(f"❌ {api_result['message']}")
+    if not api_result.get("success"):
+        error_msg = api_result.get("reason", "Неизвестная ошибка")
+        await msg.edit_text(f"❌ {error_msg}")
         return
 
     text = format_response(api_result)
-    
-    # Кнопки фидбека
+
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Верно", callback_data=f"fb:correct:{user_id}"),
         InlineKeyboardButton("❌ Ошибка", callback_data=f"fb:wrong:{user_id}")
@@ -135,7 +121,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_sessions[user_id] = {"api_result": api_result, "feedback_given": False}
 
     await msg.delete()
-    await update.message.reply_text(f"Результат: *{text}*", parse_mode="Markdown", reply_markup=keyboard)
+    await update.message.reply_text(f"🍕 Результат:\n{text}", reply_markup=keyboard)
+
 
 async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -151,7 +138,6 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     session["feedback_given"] = True
     headers = {"Authorization": f"Bearer {API_KEY}"}
 
-
     async with aiohttp.ClientSession() as http:
         try:
             await http.post(FEEDBACK_URL, headers=headers, json={
@@ -165,6 +151,7 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_reply_markup(reply_markup=None)
     await query.message.reply_text("🙏 Спасибо за отзыв!")
 
+
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
@@ -172,6 +159,7 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_feedback, pattern=r"^fb:"))
     logger.info("Бот запущен...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()

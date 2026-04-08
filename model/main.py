@@ -1,6 +1,6 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from PIL import Image
-import io
+from fastapi import FastAPI, UploadFile, File
+import os
+import shutil
 import logging
 
 from pizza_classifier import PizzaClassifier
@@ -24,26 +24,23 @@ model = PizzaInspector(classifier, detector)
 
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    # проверка типа
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Файл должен быть изображением")
+async def predict_pizza(file: UploadFile = File(...)):
+    # 1. Генерируем имя для временного файла
+    temp_image_path = f"temp_{file.filename}"
 
     try:
-        contents = await file.read()
+        # 2. Физически сохраняем присланную картинку на диск внутри Докера
+        with open(temp_image_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-        # ⚠️ ограничение размера (5MB)
-        if len(contents) > 5 * 1024 * 1024:
-            raise HTTPException(status_code=400, detail="Файл слишком большой")
-
-        # 📸 открываем изображение в памяти
-        # 🚀 инференс
-        result = model.inspect_pizza(contents)
-
-        logger.info(f"Prediction: {result}")
-
+        # 3. Передаем ПУТЬ к сохраненному файлу в наш инспектор (как он и просит)
+        result = model.inspect_pizza(temp_image_path)
         return result
 
     except Exception as e:
-        logger.error(f"Ошибка инференса: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"success": False, "status": "ERROR", "reason": f"Ошибка: {str(e)}"}
+
+    finally:
+        # 4. ОБЯЗАТЕЛЬНО удаляем временный файл, чтобы жесткий диск Докера не переполнился
+        if os.path.exists(temp_image_path):
+            os.remove(temp_image_path)

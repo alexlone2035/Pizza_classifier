@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   api:
     build: ./api
@@ -8,7 +10,7 @@ services:
       - db
       - model
     environment:
-      - API_KEY=secret_key
+      - API_KEY=8f2c9d7e4a6b1c3d5e9f0a7b2c8d6e1f9a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d
 
   bot:
     build: ./pizza_qc_bot
@@ -16,17 +18,19 @@ services:
     depends_on:
       - api
     environment:
-      - TELEGRAM_BOT_TOKEN=your_token
+      - TELEGRAM_BOT_TOKEN=8649021426:AAGeoA7w5fcztcQ6ShPnc0-gcN-JDCLCwQg
       - API_BASE_URL=http://api:8000
-      - API_KEY=secret_key
+      - API_KEY=8f2c9d7e4a6b1c3d5e9f0a7b2c8d6e1f9a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d
 
   db:
     image: postgres:15
     container_name: db
     environment:
-      POSTGRES_USER: pizza
-      POSTGRES_PASSWORD: pizza
-      POSTGRES_DB: pizza_db
+      - POSTGRES_USER=pizza
+      - POSTGRES_PASSWORD=pizza
+      - POSTGRES_DB=pizza_db
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -35,6 +39,9 @@ services:
     container_name: model
     ports:
       - "9000:9000"
+    volumes:
+      - ./classifier_dataset:/model/classifier_dataset
+      - ./pizza_dataset:/model/pizza_dataset
 
 volumes:
   pgdata:
