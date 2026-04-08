@@ -91,14 +91,45 @@ async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
 # ФОРМАТ ОТВЕТА
 # ─────────────────────────────────────────────
 def format_response(api_result: dict) -> str:
+    # Словари для перевода терминов
+    pizza_translations = {
+        "Margherita": "Маргарита",
+        "Pepperoni": "Пепперони",
+        "Meat": "Мясная",
+        "Cheese": "Сырная",
+        "Hawaiian": "Гавайская",
+        "Veggie": "Овощная"
+    }
+
+    status_translations = {
+        "OK": "✅ Соответствует стандарту",
+        "NOT_OK": "❌ Брак / Несоответствие",
+        "ERROR": "⚠️ Ошибка обработки"
+    }
+
+    # Получаем значения из API (в английском варианте)
+    raw_type = api_result.get('pizza_type', '—')
+    raw_status = api_result.get('status', '—')
+    confidence = api_result.get('confidence', '0')
+    reason = api_result.get('reason', '')
+
+    # Переводим, если значение есть в словаре, иначе оставляем как есть
+    translated_type = pizza_translations.get(raw_type, raw_type)
+    translated_status = status_translations.get(raw_status, raw_status)
+
+    # Если "reason" тоже приходит на английском, можно добавить простую замену
+    # Например: "Not enough salami" -> "Недостаточно колбасы"
+    reason_ru = reason.replace("Not enough salami", "Недостаточно колбасы") \
+                      .replace("Wrong ingredients", "Неверные ингредиенты") \
+                      .replace("With pizza everything is fine", "С пиццей всё в порядке")
+
     return (
         f"📋 *Результат проверки*\n\n"
-        f"Тип: `{api_result.get('pizza_type', '—')}`\n"
-        f"Уверенность: `{api_result.get('confidence', '—')}`\n"
-        f"Статус: `{api_result.get('status', '—')}`\n"
-        f"Причина: {api_result.get('reason', '')}"
+        f"🍕 *Тип:* `{translated_type}`\n"
+        f"📊 *Уверенность:* `{confidence}%`\n"
+        f"🛡️ *Статус:* {translated_status}\n"
+        f"📝 *Причина:* {reason_ru}"
     )
-
 
 # ─────────────────────────────────────────────
 # КОМАНДЫ
