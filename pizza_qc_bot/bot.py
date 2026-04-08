@@ -7,9 +7,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, ContextTypes, filters
 )
-from inspector import PizzaInspector
 
-inspector = PizzaInspector(clf_weights="classifier.pth", yolo_weights="yolo_best.pt")
 
 # ─────────────────────────────────────────────
 # КОНФИГ
@@ -127,15 +125,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         async with session.get(photo.file_path) as resp:
             image_bytes = await resp.read()
 
-    # --- ДОБАВЛЕННЫЙ БЛОК ---
-    # Сохраняем байты в файл, чтобы модель могла его прочитать
-    image_path = "path_to_saved_photo.jpg"
-    with open(image_path, "wb") as f:
-        f.write(image_bytes)
-
-    # Ваша строка с вызовом модели
-    result = inspector.inspect_pizza(image_path)
-    # ------------------------
 
     api_result = await send_to_model_api(image_bytes, user_id)
 
