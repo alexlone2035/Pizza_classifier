@@ -96,8 +96,8 @@ class PizzaInspector:
                 "reason": f"Ошибка обработки изображения: {str(e)}"
             }
 
-if __name__ == "__main__":
-    test_image = "test.jpg"
-    model = PizzaInspector()
-    result = model.inspect_pizza(test_image)
-    print(json.dumps(result, indent=4, ensure_ascii=False))
+#if __name__ == "__main__":
+#    test_image = "test.jpg"
+#    model = PizzaInspector()
+#    result = model.inspect_pizza(test_image)
+#    print(json.dumps(result, indent=4, ensure_ascii=False))
