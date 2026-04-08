@@ -7,7 +7,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, ContextTypes, filters
 )
-
+from transliterate import translit
 
 # ─────────────────────────────────────────────
 # КОНФИГ
@@ -91,45 +91,24 @@ async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
 # ФОРМАТ ОТВЕТА
 # ─────────────────────────────────────────────
 def format_response(api_result: dict) -> str:
-    # Словари для перевода терминов
-    pizza_translations = {
-        "Margherita": "Маргарита",
-        "Pepperoni": "Пепперони",
-        "Meat": "Мясная",
-        "Cheese": "Сырная",
-        "Hawaiian": "Гавайская",
-        "Veggie": "Овощная"
-    }
+    # 1. Получаем тип пиццы (например, 'pepperoni' или 'four_cheese')
+    raw_type = api_result.get('pizza_type', '')
 
-    status_translations = {
-        "OK": "✅ Соответствует стандарту",
-        "NOT_OK": "❌ Брак / Несоответствие",
-        "ERROR": "⚠️ Ошибка обработки"
-    }
+    # 2. Очищаем строку: заменяем подчеркивания на пробелы
+    # 'four_cheese' -> 'four cheese'
+    clean_name = raw_type.replace('_', ' ')
 
-    # Получаем значения из API (в английском варианте)
-    raw_type = api_result.get('pizza_type', '—')
-    raw_status = api_result.get('status', '—')
-    confidence = api_result.get('confidence', '0')
-    reason = api_result.get('reason', '')
+    # 3. Транслитерируем на русский язык
+    # reversed=True делает из латиницы кириллицу (если указан язык 'ru')
+    try:
+        translated = translit(clean_name, 'ru')
+    except Exception:
+        # Если возникла редкая ошибка, просто возвращаем оригинал с большой буквы
+        return clean_name.capitalize()
 
-    # Переводим, если значение есть в словаре, иначе оставляем как есть
-    translated_type = pizza_translations.get(raw_type, raw_type)
-    translated_status = status_translations.get(raw_status, raw_status)
-
-    # Если "reason" тоже приходит на английском, можно добавить простую замену
-    # Например: "Not enough salami" -> "Недостаточно колбасы"
-    reason_ru = reason.replace("Not enough salami", "Недостаточно колбасы") \
-                      .replace("Wrong ingredients", "Неверные ингредиенты") \
-                      .replace("With pizza everything is fine", "С пиццей всё в порядке")
-
-    return (
-        f"📋 *Результат проверки*\n\n"
-        f"🍕 *Тип:* `{translated_type}`\n"
-        f"📊 *Уверенность:* `{confidence}%`\n"
-        f"🛡️ *Статус:* {translated_status}\n"
-        f"📝 *Причина:* {reason_ru}"
-    )
+    # 4. Возвращаем результат с заглавной буквы
+    # 'пепперони' -> 'Пепперони'
+    return translated.capitalize()
 
 # ─────────────────────────────────────────────
 # КОМАНДЫ
