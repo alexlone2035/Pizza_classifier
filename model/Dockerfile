@@ -1,8 +1,8 @@
 FROM python:3.10-slim
 
-WORKDIR /app
+WORKDIR /model
 
-# системные зависимости
+# зависимости для OpenCV / YOLO
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \

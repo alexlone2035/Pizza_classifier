@@ -1,0 +1,40 @@
+services:
+  api:
+    build: ./api
+    container_name: api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - model
+    environment:
+      - API_KEY=secret_key
+
+  bot:
+    build: ./pizza_qc_bot
+    container_name: bot
+    depends_on:
+      - api
+    environment:
+      - TELEGRAM_BOT_TOKEN=your_token
+      - API_BASE_URL=http://api:8000
+      - API_KEY=secret_key
+
+  db:
+    image: postgres:15
+    container_name: db
+    environment:
+      POSTGRES_USER: pizza
+      POSTGRES_PASSWORD: pizza
+      POSTGRES_DB: pizza_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  model:
+    build: ./model
+    container_name: model
+    ports:
+      - "9000:9000"
+
+volumes:
+  pgdata:

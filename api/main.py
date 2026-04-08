@@ -11,7 +11,7 @@ if not API_KEY:
 
 app = FastAPI(title="Pizza API")
 
-ML_API_URL = "http://ml:9000/predict"
+ML_API_URL = "http://model:9000/predict"
 
 
 @app.post("/predict")
