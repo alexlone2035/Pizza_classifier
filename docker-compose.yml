@@ -16,7 +16,7 @@ services:
     depends_on:
       - api
     environment:
-      - TELEGRAM_BOT_TOKEN=your_token
+      - TELEGRAM_BOT_TOKEN=8649021426:AAGeoA7w5fcztcQ6ShPnc0-gcN-JDCLCwQg
       - API_BASE_URL=http://api:8000
       - API_KEY=secret_key
 
