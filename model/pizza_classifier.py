@@ -43,7 +43,7 @@ class PizzaClassifier:
         print(f"ResNet: Обучение завершено. Веса сохранены.")
         self.model.eval()
 
-    def load_weights(self, weights_path="classifier.pth", dataset_dir="classifier_dataset/train"):
+    def load_weights(self, weights_path="model/classifier.pth", dataset_dir="../classifier_dataset/train"):
         classes = sorted([d for d in os.listdir(dataset_dir) if os.path.isdir(os.path.join(dataset_dir, d))])
 
         self.model.fc = nn.Linear(self.model.fc.in_features, len(classes))
@@ -51,7 +51,7 @@ class PizzaClassifier:
         self.model.to(self.device)
         self.weights_path = weights_path
 
-    def predict(self, image_pil, dataset_dir="classifier_dataset/train"):
+    def predict(self, image_pil, dataset_dir="../classifier_dataset/train"):
         if self.weights_path is None:
             raise RuntimeError("Модель не обучена!")
 

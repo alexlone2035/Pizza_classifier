@@ -29,7 +29,7 @@ if __name__ == "__main__":
     detector.load_weights("yolo_best.pt")
     inspector = PizzaInspector(classifier, detector)
 
-    test_image = "test.jpg"
+    test_image = "../test1.jpg"
     if os.path.exists(test_image):
         result = inspector.inspect_pizza(test_image)
         print(json.dumps(result, indent=4, ensure_ascii=False))

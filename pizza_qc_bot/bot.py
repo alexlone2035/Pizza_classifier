@@ -7,7 +7,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, ContextTypes, filters
 )
-from transliterate import translit
+
 
 # ─────────────────────────────────────────────
 # КОНФИГ
@@ -202,8 +202,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
 
     # Рекомендуется удалить временный файл после обработки
-    if os.path.exists(image_path):
-        os.remove(image_path)
+    # if os.path.exists(image_path):
+    #     os.remove(image_path)
 
 
 # ─────────────────────────────────────────────

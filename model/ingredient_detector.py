@@ -12,7 +12,7 @@ class IngredientDetector:
         self.weights_path = weights_path
         self.yolo = YOLO(self.weights_path)
 
-    def train(self, data_yaml_path="pizza_dataset/data.yaml", epochs=30, save_path="yolo_best.pt"):
+    def train(self, data_yaml_path="../pizza_dataset/data.yaml", epochs=30, save_path="model/yolo_best.pt"):
 
         self.yolo = YOLO("yolov8n.pt")
         results = self.yolo.train(
