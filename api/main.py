@@ -1,14 +1,15 @@
-from fastapi import FastAPI, UploadFile, File, Header, HTTPException
-import requests
-from db import save_to_db
+from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Form
+import httpx
 import os
+
+from db import save_to_db, SessionLocal, PizzaData
 
 API_KEY = os.getenv("API_KEY")
 
 if not API_KEY:
     raise ValueError("API_KEY not set")
 
-app = FastAPI()
+app = FastAPI(title="Pizza API")
 
 ML_API_URL = "http://ml:9000/predict"
 
@@ -16,19 +17,26 @@ ML_API_URL = "http://ml:9000/predict"
 @app.post("/predict")
 async def predict(
     file: UploadFile = File(...),
+    chat_id: str = Form(...),
     authorization: str = Header(None)
 ):
+    # 🔐 Проверка API ключа
     if not authorization or authorization != f"Bearer {API_KEY}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     contents = await file.read()
 
+    # ⚠️ Ограничение размера файла (5MB)
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large")
+
     try:
-        response = requests.post(
-            ML_API_URL,
-            files={"file": ("image.jpg", contents, "image/jpeg")},
-            timeout=10
-        )
+        # 🚀 Асинхронный запрос к ML сервису
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                ML_API_URL,
+                files={"file": ("image.jpg", contents, "image/jpeg")}
+            )
 
         if response.status_code != 200:
             raise HTTPException(
@@ -38,15 +46,58 @@ async def predict(
 
         result = response.json()
 
-    except requests.exceptions.RequestException:
+    except httpx.RequestError:
         raise HTTPException(
             status_code=500,
             detail="ML service unavailable"
         )
 
+    # ❗ Если модель вернула ошибку — не сохраняем
+    if not result.get("success", True):
+        return result
+
+    # 💾 Сохраняем в БД
     try:
-        save_to_db(result)
+        record_id = save_to_db({**result, "chat_id": chat_id})
+        result["prediction_id"] = record_id
     except Exception as e:
         print("DB error:", e)
 
     return result
+
+
+@app.post("/feedback")
+async def feedback(
+    data: dict,
+    authorization: str = Header(None)
+):
+    # 🔐 Проверка API ключа
+    if not authorization or authorization != f"Bearer {API_KEY}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    prediction_id = data.get("original_result", {}).get("prediction_id")
+    verdict = data.get("verdict")
+
+    if not prediction_id:
+        return {"error": "prediction_id not found"}
+
+    db = SessionLocal()
+
+    try:
+        record = db.query(PizzaData).filter(PizzaData.id == prediction_id).first()
+
+        if not record:
+            return {"error": "record not found"}
+
+        record.feedback = verdict
+        db.commit()
+
+    finally:
+        db.close()
+
+    return {"status": "ok"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
