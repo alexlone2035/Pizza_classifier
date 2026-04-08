@@ -91,24 +91,68 @@ async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
 # ФОРМАТ ОТВЕТА
 # ─────────────────────────────────────────────
 def format_response(api_result: dict) -> str:
-    # 1. Получаем тип пиццы (например, 'pepperoni' или 'four_cheese')
-    raw_type = api_result.get('pizza_type', '')
+    # 1. Твой ручной словарь соответствий (на основе фото)
+    PIZZA_MAP = {
+        "alfredo": "Альфредо",
+        "bavarskaya": "Баварская",
+        "bolshayabonanza": "Большая Бонанза",
+        "chedderchizburger": "Чеддер Чизбургер",
+        "cheddermeksikan": "Чеддер Мексикан",
+        "chetyresyra": "Четыре Сыра",
+        "chizburger": "Чизбургер",
+        "gavayskaya": "Гавайская",
+        "grushabbq": "Груша BBQ",
+        "kaprichioza": "Капричоза",
+        "klubnikaizefir": "Клубника и Зефир",
+        "kosmicheskiyset23": "Космический сет 23",
+        "krem_chizsgribami": "Крем-чиз с грибами",
+        "lyubimayadedamoroza": "Любимая Деда Мороза",
+        "lyubimayakarbonara": "Любимая Карбонара",
+        "lyubimayapapinapitstsa": "Любимая Папина Пицца",
+        "malenkayaitaliya": "Маленькая Италия",
+        "margarita": "Маргарита",
+        "meksikanskaya": "Мексиканская",
+        "miksgrin": "Микс Грин",
+        "myasnaya": "Мясная",
+        "myasnoebarbekyu": "Мясное Барбекю",
+        "novogodnyaya": "Новогодняя",
+        "palochki": "Палочки",
+        "papamiks": "Папа Микс",
+        "pepperoni": "Пепперони",
+        "pepperonigrin": "Пепперони Грин",
+        "pitstsa8syrovnew": "Пицца 8 Сыров (Новая)",
+        "postnaya": "Постная",
+        "rozhdestvenskaya": "Рождественская",
+        "sananasomibekonom": "С ананасом и беконом",
+        "serdtsepepperoni_4syra": "Сердце Пепперони и 4 Сыра",
+        "serdtsetsyplenokbarbekyu_pepperoni": "Сердце Цыпленок Барбекю и Пепперони",
+        "sgrusheyibekonom": "С грушей и беконом",
+        "sgrusheyigolubymsyrom": "С грушей и голубым сыром",
+        "slivochnayaskrevetkami": "Сливочная с креветками",
+        "superpapa": "Супер Папа",
+        "syrnaya": "Сырная",
+        "tomatnayaskrevetkami": "Томатная с креветками",
+        "tsyplenokbarbekyu": "Цыпленок Барбекю",
+        "tsyplenokflorentina": "Цыпленок Флорентина",
+        "tsyplenokgrin": "Цыпленок Грин",
+        "tsyplenokkordonblyu": "Цыпленок Кордон Блю",
+        "tsyplenokkrench": "Цыпленок Кренч",
+        "ulybka": "Улыбка",
+        "vegetarianskaya": "Вегетарианская",
+        "vetchinaibekon": "Ветчина и бекон",
+        "vetchinaigriby": "Ветчина и грибы"
+    }
 
-    # 2. Очищаем строку: заменяем подчеркивания на пробелы
-    # 'four_cheese' -> 'four cheese'
-    clean_name = raw_type.replace('_', ' ')
+    # 2. Получаем техническое имя из результата API
+    raw_type = api_result.get('pizza_type', '').lower().strip()
 
-    # 3. Транслитерируем на русский язык
-    # reversed=True делает из латиницы кириллицу (если указан язык 'ru')
-    try:
-        translated = translit(clean_name, 'ru')
-    except Exception:
-        # Если возникла редкая ошибка, просто возвращаем оригинал с большой буквы
-        return clean_name.capitalize()
+    # 3. Ищем перевод в словаре
+    # Если вдруг придет название, которого нет в списке — просто транслитерируем его
+    if raw_type in PIZZA_MAP:
+        return PIZZA_MAP[raw_type]
 
-    # 4. Возвращаем результат с заглавной буквы
-    # 'пепперони' -> 'Пепперони'
-    return translated.capitalize()
+    # Fallback на случай, если слова нет в словаре (простой Capitalize)
+    return raw_type.replace('_', ' ').capitalize()
 
 # ─────────────────────────────────────────────
 # КОМАНДЫ
