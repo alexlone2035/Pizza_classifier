@@ -1,0 +1,14 @@
+python-telegram-bot
+python-dotenv
+aiohttp
+anthropic
+fastapi
+uvicorn
+python-multipart
+torch
+torchvision
+ultralytics
+opencv-python-headless
+Pillow
+numpy
+transliterate
