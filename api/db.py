@@ -4,6 +4,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = "postgresql://pizza:pizza@db:5432/pizza_db"
 
+# ⏳ Ожидание запуска БД
 for i in range(10):
     try:
         engine = create_engine(DATABASE_URL)
@@ -22,12 +23,18 @@ class PizzaData(Base):
     __tablename__ = "pizza_data"
 
     id = Column(Integer, primary_key=True)
+
     success = Column(Bool)
     pizza_type = Column(String)
     confidence = Column(Float)
     status = Column(String)
     reason = Column(String)
+
     ingredients_found = Column(JSON)
+
+    # 🔥 Новые поля
+    chat_id = Column(String)
+    feedback = Column(String)  # correct / wrong
 
 
 Base.metadata.create_all(engine)
@@ -42,9 +49,15 @@ def save_to_db(result):
         confidence=result.get("confidence"),
         status=result.get("status"),
         reason=result.get("reason"),
-        ingredients_found=result.get("ingredients_found")
+        ingredients_found=result.get("ingredients_found"),
+        chat_id=result.get("chat_id")
     )
 
     db.add(record)
     db.commit()
+    db.refresh(record)  # получаем id
+
+    record_id = record.id
+
     db.close()
+    return record_id

@@ -1,9 +1,6 @@
 fastapi
 uvicorn
-pillow
-numpy
-opencv-python-headless
-torch
-torchvision
-ultralytics
+httpx
+sqlalchemy
+psycopg2-binary
 python-multipart

@@ -8,7 +8,6 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes, filters
 )
 
-
 # ─────────────────────────────────────────────
 # КОНФИГ
 # ─────────────────────────────────────────────
@@ -24,44 +23,35 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 API_BASE_URL   = os.getenv("API_BASE_URL")     # http://api:8000
 API_KEY        = os.getenv("API_KEY")
 
-if not TELEGRAM_TOKEN:
-    raise ValueError("TELEGRAM_BOT_TOKEN не задан")
-
-if not API_BASE_URL:
-    raise ValueError("API_BASE_URL не задан")
-
-if not API_KEY:
-    raise ValueError("API_KEY не задан")
+if not TELEGRAM_TOKEN or not API_BASE_URL or not API_KEY:
+    raise ValueError("Проверьте переменные окружения (Token, API_URL, Key)")
 
 PREDICT_URL  = f"{API_BASE_URL}/predict"
 FEEDBACK_URL = f"{API_BASE_URL}/feedback"
 
-# ─────────────────────────────────────────────
-# СЕССИИ
-# ─────────────────────────────────────────────
 user_sessions: dict = {}
 
-
 # ─────────────────────────────────────────────
-# ОТПРАВКА В API
+# ОТПРАВКА В API (ФОТО + CHAT_ID)
 # ─────────────────────────────────────────────
 async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
-    logger.info(f"Отправка в API: {PREDICT_URL}")
+    logger.info(f"Отправка в API: {PREDICT_URL} для пользователя {user_id}")
 
-    headers = {
-        "Authorization": f"Bearer {API_KEY}"
-    }
+    headers = {"Authorization": f"Bearer {API_KEY}"}
 
     async with aiohttp.ClientSession() as session:
         form = aiohttp.FormData()
-
-        # ❗ ВАЖНО: должно быть "file"
+        
+        # Отправляем файл
         form.add_field(
             "file",
             image_bytes,
             filename="pizza.jpg",
             content_type="image/jpeg"
         )
+        
+        # Отправляем chat_id (сокомандник получит его в request.form)
+        form.add_field("chat_id", str(user_id))
 
         try:
             async with session.post(
@@ -70,116 +60,64 @@ async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
-
                 if resp.status == 200:
                     result = await resp.json()
-                    logger.info(f"Ответ API: {result}")
                     return result
                 else:
                     text = await resp.text()
                     logger.error(f"Ошибка API {resp.status}: {text}")
-                    return {"error": True, "message": f"Ошибка {resp.status}"}
-
-        except aiohttp.ClientConnectorError:
-            return {"error": True, "message": "API недоступен"}
-
+                    return {"error": True, "message": f"Ошибка сервера: {resp.status}"}
         except Exception as e:
-            return {"error": True, "message": str(e)}
+            return {"error": True, "message": f"Ошибка соединения: {str(e)}"}
 
 
 # ─────────────────────────────────────────────
-# ФОРМАТ ОТВЕТА
+# ФОРМАТ ОТВЕТА (РУЧНОЙ СЛОВАРЬ)
 # ─────────────────────────────────────────────
 def format_response(api_result: dict) -> str:
-    # 1. Твой ручной словарь соответствий (на основе фото)
     PIZZA_MAP = {
-        "alfredo": "Альфредо",
-        "bavarskaya": "Баварская",
-        "bolshayabonanza": "Большая Бонанза",
-        "chedderchizburger": "Чеддер Чизбургер",
-        "cheddermeksikan": "Чеддер Мексикан",
-        "chetyresyra": "Четыре Сыра",
-        "chizburger": "Чизбургер",
-        "gavayskaya": "Гавайская",
-        "grushabbq": "Груша BBQ",
-        "kaprichioza": "Капричоза",
-        "klubnikaizefir": "Клубника и Зефир",
-        "kosmicheskiyset23": "Космический сет 23",
-        "krem_chizsgribami": "Крем-чиз с грибами",
-        "lyubimayadedamoroza": "Любимая Деда Мороза",
-        "lyubimayakarbonara": "Любимая Карбонара",
-        "lyubimayapapinapitstsa": "Любимая Папина Пицца",
-        "malenkayaitaliya": "Маленькая Италия",
-        "margarita": "Маргарита",
-        "meksikanskaya": "Мексиканская",
-        "miksgrin": "Микс Грин",
-        "myasnaya": "Мясная",
-        "myasnoebarbekyu": "Мясное Барбекю",
-        "novogodnyaya": "Новогодняя",
-        "palochki": "Палочки",
-        "papamiks": "Папа Микс",
-        "pepperoni": "Пепперони",
-        "pepperonigrin": "Пепперони Грин",
-        "pitstsa8syrovnew": "Пицца 8 Сыров (Новая)",
-        "postnaya": "Постная",
-        "rozhdestvenskaya": "Рождественская",
-        "sananasomibekonom": "С ананасом и беконом",
+        "alfredo": "Альфредо", "bavarskaya": "Баварская", "bolshayabonanza": "Большая Бонанза",
+        "chedderchizburger": "Чеддер Чизбургер", "cheddermeksikan": "Чеддер Мексикан",
+        "chetyresyra": "Четыре Сыра", "chizburger": "Чизбургер", "gavayskaya": "Гавайская",
+        "grushabbq": "Груша BBQ", "kaprichioza": "Капричоза", "klubnikaizefir": "Клубника и Зефир",
+        "kosmicheskiyset23": "Космический сет 23", "krem_chizsgribami": "Крем-чиз с грибами",
+        "lyubimayadedamoroza": "Любимая Деда Мороза", "lyubimayakarbonara": "Любимая Карбонара",
+        "lyubimayapapinapitstsa": "Любимая Папина Пицца", "malenkayaitaliya": "Маленькая Италия",
+        "margarita": "Маргарита", "meksikanskaya": "Мексиканская", "miksgrin": "Микс Грин",
+        "myasnaya": "Мясная", "myasnoebarbekyu": "Мясное Барбекю", "novogodnyaya": "Новогодняя",
+        "palochki": "Палочки", "papamiks": "Папа Микс", "pepperoni": "Пепперони",
+        "pepperonigrin": "Пепперони Грин", "pitstsa8syrovnew": "Пицца 8 Сыров (Новая)",
+        "postnaya": "Постная", "rozhdestvenskaya": "Рождественская", "sananasomibekonom": "С ананасом и беконом",
         "serdtsepepperoni_4syra": "Сердце Пепперони и 4 Сыра",
         "serdtsetsyplenokbarbekyu_pepperoni": "Сердце Цыпленок Барбекю и Пепперони",
-        "sgrusheyibekonom": "С грушей и беконом",
-        "sgrusheyigolubymsyrom": "С грушей и голубым сыром",
-        "slivochnayaskrevetkami": "Сливочная с креветками",
-        "superpapa": "Супер Папа",
-        "syrnaya": "Сырная",
-        "tomatnayaskrevetkami": "Томатная с креветками",
-        "tsyplenokbarbekyu": "Цыпленок Барбекю",
-        "tsyplenokflorentina": "Цыпленок Флорентина",
-        "tsyplenokgrin": "Цыпленок Грин",
-        "tsyplenokkordonblyu": "Цыпленок Кордон Блю",
-        "tsyplenokkrench": "Цыпленок Кренч",
-        "ulybka": "Улыбка",
-        "vegetarianskaya": "Вегетарианская",
-        "vetchinaibekon": "Ветчина и бекон",
-        "vetchinaigriby": "Ветчина и грибы"
+        "sgrusheyibekonom": "С грушей и беконом", "sgrusheyigolubymsyrom": "С грушей и голубым сыром",
+        "slivochnayaskrevetkami": "Сливочная с креветками", "superpapa": "Супер Папа",
+        "syrnaya": "Сырная", "tomatnayaskrevetkami": "Томатная с креветками",
+        "tsyplenokbarbekyu": "Цыпленок Барбекю", "tsyplenokflorentina": "Цыпленок Флорентина",
+        "tsyplenokgrin": "Цыпленок Грин", "tsyplenokkordonblyu": "Цыпленок Кордон Блю",
+        "tsyplenokkrench": "Цыпленок Кренч", "ulybka": "Улыбка", "vegetarianskaya": "Вегетарианская",
+        "vetchinaibekon": "Ветчина и бекон", "vetchinaigriby": "Ветчина и грибы"
     }
-
-    # 2. Получаем техническое имя из результата API
     raw_type = api_result.get('pizza_type', '').lower().strip()
-
-    # 3. Ищем перевод в словаре
-    # Если вдруг придет название, которого нет в списке — просто транслитерируем его
-    if raw_type in PIZZA_MAP:
-        return PIZZA_MAP[raw_type]
-
-    # Fallback на случай, если слова нет в словаре (простой Capitalize)
-    return raw_type.replace('_', ' ').capitalize()
+    return PIZZA_MAP.get(raw_type, raw_type.replace('_', ' ').capitalize())
 
 # ─────────────────────────────────────────────
-# КОМАНДЫ
+# ОБРАБОТЧИКИ ТЕЛЕГРАМ
 # ─────────────────────────────────────────────
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Отправь фото пиццы")
+    await update.message.reply_text("👋 Привет! Пришли фото пиццы, и я определю её вид.")
 
-
-async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Просто отправь фото")
-
-
-# ─────────────────────────────────────────────
-# ОБРАБОТКА ФОТО
-# ─────────────────────────────────────────────
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    msg = await update.message.reply_text("⏳ Нейросеть думает...")
 
-    msg = await update.message.reply_text("⏳ Обрабатываю...")
-
-    photo = await update.message.photo[-1].get_file()
-
+    # Скачиваем фото в память
+    photo_file = await update.message.photo[-1].get_file()
     async with aiohttp.ClientSession() as session:
-        async with session.get(photo.file_path) as resp:
+        async with session.get(photo_file.file_path) as resp:
             image_bytes = await resp.read()
 
-
+    # Отправляем сокоманднику (фото + ID)
     api_result = await send_to_model_api(image_bytes, user_id)
 
     if api_result.get("error"):
@@ -187,28 +125,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = format_response(api_result)
-
+    
+    # Кнопки фидбека
     keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅", callback_data=f"fb:correct:{user_id}"),
-        InlineKeyboardButton("❌", callback_data=f"fb:wrong:{user_id}")
+        InlineKeyboardButton("✅ Верно", callback_data=f"fb:correct:{user_id}"),
+        InlineKeyboardButton("❌ Ошибка", callback_data=f"fb:wrong:{user_id}")
     ]])
 
-    user_sessions[user_id] = {
-        "api_result": api_result,
-        "feedback_given": False
-    }
+    user_sessions[user_id] = {"api_result": api_result, "feedback_given": False}
 
     await msg.delete()
-    await update.message.reply_text(text, parse_mode="Markdown", reply_markup=keyboard)
+    await update.message.reply_text(f"Результат: *{text}*", parse_mode="Markdown", reply_markup=keyboard)
 
-    # Рекомендуется удалить временный файл после обработки
-    # if os.path.exists(image_path):
-    #     os.remove(image_path)
-
-
-# ─────────────────────────────────────────────
-# FEEDBACK
-# ─────────────────────────────────────────────
 async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -217,49 +145,33 @@ async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = int(user_id_str)
 
     session = user_sessions.get(user_id)
-    if not session:
-        return
-
-    if session["feedback_given"]:
-        await query.answer("Уже оценено", show_alert=True)
+    if not session or session["feedback_given"]:
         return
 
     session["feedback_given"] = True
+    headers = {"Authorization": f"Bearer {API_KEY}"}
 
-    headers = {
-        "Authorization": f"Bearer {API_KEY}"
-    }
 
     async with aiohttp.ClientSession() as http:
         try:
-            await http.post(
-                FEEDBACK_URL,
-                json={
-                    "user_id": user_id,
-                    "verdict": verdict,
-                    "original_result": session["api_result"]
-                },
-                headers=headers
-            )
+            await http.post(FEEDBACK_URL, headers=headers, json={
+                "user_id": user_id,
+                "verdict": verdict,
+                "original_result": session["api_result"]
+            })
         except Exception as e:
-            logger.warning(f"feedback error: {e}")
+            logger.warning(f"Ошибка фидбека: {e}")
 
     await query.edit_message_reply_markup(reply_markup=None)
-    await query.message.reply_text("✅ Спасибо!")
+    await query.message.reply_text("🙏 Спасибо за отзыв!")
 
-
-# ─────────────────────────────────────────────
-# ЗАПУСК
-# ─────────────────────────────────────────────
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
-
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CallbackQueryHandler(handle_feedback, pattern=r"^fb:"))
-
+    logger.info("Бот запущен...")
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
