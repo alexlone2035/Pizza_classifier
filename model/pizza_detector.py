@@ -23,9 +23,6 @@ class PizzaDetector:
             name="train_run"
         )
 
-        metrics = self.yolo.val()
-        print(f"Точность детектора (mAP50): {metrics.results_dict['metrics/mprecision(B)']:.4f}")
-
         best_model_path = str(results.save_dir / "weights" / "best.pt")
         shutil.copy(best_model_path, save_path)
         self.weights_path = save_path
