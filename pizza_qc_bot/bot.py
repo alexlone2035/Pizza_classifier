@@ -74,21 +74,41 @@ def format_response(api_result: dict) -> str:
         "serdtsepepperoni_4syra": "Сердце Пепперони и 4 Сыра",
         "serdtsetsyplenokbarbekyu_pepperoni": "Сердце Цыпленок Барбекю и Пепперони",
         "sgrusheyibekonom": "С грушей и беконом", "sgrusheyigolubymsyrom": "С грушей и голубым сыром",
-        "slivochnayaskrevetkami": "Сливочная с креветками", "superpapa": "Супер Папа",
+        "slivochnayaskrevetkami": "Сливочная с креветками", "superpapa": "Супер Papa",
         "syrnaya": "Сырная", "tomatnayaskrevetkami": "Томатная с креветками",
         "tsyplenokbarbekyu": "Цыпленок Барбекю", "tsyplenokflorentina": "Цыпленок Флорентина",
         "tsyplenokgrin": "Цыпленок Грин", "tsyplenokkordonblyu": "Цыпленок Кордон Блю",
         "tsyplenokkrench": "Цыпленок Кренч", "ulybka": "Улыбка", "vegetarianskaya": "Вегетарианская",
         "vetchinaibekon": "Ветчина и бекон", "vetchinaigriby": "Ветчина и грибы"
     }
+
+    INGREDIENTS_MAP = {
+        'pepperoni': 'Пепперони', 'chicken': 'Курица', 'mushroom': 'Грибы',
+        'tomato': 'Томаты', 'pineapple': 'Ананас', 'bacon': 'Бекон',
+        'ham': 'Ветчина', 'shrimp': 'Креветки', 'cheese': 'Сыр',
+        'olive': 'Оливки', 'pepper': 'Перец', 'jalapeno': 'Халапеньо', 'onion': 'Лук'
+    }
+
     raw_type = api_result.get('pizza_type', '').lower().strip()
     pizza_name = PIZZA_MAP.get(raw_type, raw_type.replace('_', ' ').capitalize())
 
     status = api_result.get('status', '')
-    reason = api_result.get('reason', '')
     status_icon = "✅" if status == "OK" else "❌"
 
-    return f"{pizza_name}\nСтатус: {status_icon} {status}\nПричина: {reason}"
+    raw_reason = api_result.get('reason', '')
+    if isinstance(raw_reason, list):
+        translated_list = [INGREDIENTS_MAP.get(r.lower(), r) for r in raw_reason]
+        reason_text = ", ".join(translated_list)
+    else:
+        reason_text = INGREDIENTS_MAP.get(str(raw_reason).lower(), raw_reason)
+
+    if status != "OK" and reason_text:
+        reason_full = f"Уважаемый клиент, Ваша проблема заключается в следующих ингредиентах: {reason_text}"
+    else:
+        reason_full = f"Причина: {reason_text}" if reason_text else ""
+
+    return f"*{pizza_name}*\nСтатус: {status_icon} {status}\n{reason_full}"
+
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
