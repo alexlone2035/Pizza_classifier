@@ -1,127 +1,38 @@
-from PIL import Image
-
 
 class PizzaInspector:
     def __init__(self, classifier, detector):
         self.classifier = classifier
         self.detector = detector
 
-        self.INGREDIENT_GROUPS = {
-            'pepperoni': ['Pepperoni', 'pepperoni', 'Sausage'],
-            'chicken': ['Chicken'],
-            'mushroom': ['Mushroom', 'Mushrooms', 'mushrooms'],
-            'tomato': ['Tomato', 'Tomatoes', 'tomato', 'tomatoes'],
-            'pineapple': ['Pineapple', 'pineapple'],
-            'bacon': ['Bacon'],
-            'ham': ['Ham', 'Beef'],
-            'shrimp': ['shrimp'],
-            'cheese': ['Cheese', 'cheese'],
-            'olive': ['Olive', 'Olives', 'black olives', 'black_olives'],
-            'pepper': ['Pepper', 'Peppers', 'peppers', 'Bell Pepper', 'Green Pepper', 'Red Pepper'],
-            'jalapeno': ['Jalapenoes'],
-            'onion': ['Onion', 'Onions']
-        }
-
-        self.PIZZA_RULES = {
-            "pepperoni": ["pepperoni"],
-            "margarita": ["tomato"],
-            "gavayskaya": ["pineapple", "chicken"],
-            "vetchinaigriby": ["ham", "mushroom"],
-            "slivochnayaskrevetkami": ["shrimp"],
-            "tomatnayaskrevetkami": ["shrimp", "tomato"],
-            "myasnaya": ["pepperoni", "bacon"],
-            "myasnoebarbekyu": ["pepperoni", "bacon"],
-            "vetchinaibekon": ["ham", "bacon"],
-            "tsyplenokbarbekyu": ["chicken", "bacon"],
-            "tsyplenokkordonblyu": ["chicken", "bacon"],
-            "tsyplenokflorentina": ["chicken", "tomato"],
-            "tsyplenokgrin": ["chicken", "pepper"],
-            "tsyplenokkrench": ["chicken"],
-            "sananasomibekonom": ["pineapple", "bacon"],
-            "serdtsepepperoni_4syra": ["pepperoni"],
-            "serdtsetsyplenokbarbekyu_pepperoni": ["chicken", "pepperoni"],
-            "pepperonigrin": ["pepperoni", "pepper"],
-            "bavarskaya": ["pepperoni"],
-            "bolshayabonanza": ["pepperoni", "mushroom", "pepper"],
-            "lyubimayapapinapitstsa": ["pepperoni", "mushroom", "pepper"],
-            "malenkayaitaliya": ["pepperoni", "mushroom"],
-            "superpapa": ["pepperoni", "mushroom", "olive", "pepper"],
-            "chedderchizburger": ["bacon", "tomato"],
-            "chizburger": ["tomato", "onion"],
-            "cheddermeksikan": ["chicken", "jalapeno", "tomato"],
-            "meksikanskaya": ["chicken", "jalapeno", "pepper"],
-            "kaprichioza": ["mushroom", "olive"],
-            "krem_chizsgribami": ["mushroom"],
-            "lyubimayadedamoroza": ["pepperoni"],
-            "lyubimayakarbonara": ["bacon"],
-            "postnaya": ["mushroom", "tomato", "pepper"],
-            "vegetarianskaya": ["mushroom", "tomato", "pepper", "olive"],
-            "syrnaya": [],
-            "chetyresyra": [],
-            "pitstsa8syrovnew": [],
-            "papamiks": ["any"],
-            "miksgrin": ["any"],
-            "palochki": ["any"],
-            "novogodnyaya": ["any"],
-            "rozhdestvenskaya": ["any"],
-            "kosmicheskiyset23": ["any"],
-            "ulybka": ["any"],
-            "klubnikaizefir": ["any"],
-            "sgrusheyibekonom": ["bacon"],
-            "sgrusheyigolubymsyrom": ["any"],
-            "grushabbq": ["chicken"],
-            "alfredo": ["chicken"]
-        }
-
     def inspect_pizza(self, image_path):
         try:
-            image_pil = Image.open(image_path).convert('RGB')
-            pizza_type, conf = self.classifier.predict(image_pil)
-            raw_ingredients, yolo_data = self.detector.detect(image_path)
+            detected_pizzas = self.detector.detect(image_path)
+            if not detected_pizzas:
+                return {
+                    "success": True,
+                    "report": "Пиццы на изображении не найдены.",
+                    "pizzas": []
+                }
 
-            counts = {}
-            for group, keys in self.INGREDIENT_GROUPS.items():
-                counts[group] = sum(raw_ingredients.get(k, 0) for k in keys)
+            pizzas_result = []
+            for pizza in detected_pizzas:
+                pizza_type, conf = self.classifier.predict(pizza["crop"])
 
-            status = "OK"
-            reason = "С пиццей все в порядке."
-            problematic_ingredients = []
-            required_ingredients = self.PIZZA_RULES.get(pizza_type, ["any"])
-
-            meat_groups = ['pepperoni', 'chicken', 'bacon', 'ham', 'shrimp']
-
-            if required_ingredients == []:
-                for meat in meat_groups:
-                    if counts[meat] > 0:
-                        problematic_ingredients.append(meat)
-                if problematic_ingredients:
-                    status = "NOT_OK"
-                    reason = f"{', '.join(problematic_ingredients)}"
-
-            elif required_ingredients == ["any"]:
-                pass
-
-            else:
-                for meat in meat_groups:
-                    if meat not in required_ingredients and counts[meat] > 1:
-                        problematic_ingredients.append(meat)
-
-                if problematic_ingredients:
-                    status = "NOT_OK"
-                    reason = f"{', '.join(problematic_ingredients)}"
+                pizzas_result.append({
+                    "pizza_type": pizza_type,
+                    "confidence": round(conf, 2),
+                    "box": pizza["box"]
+                })
 
             return {
                 "success": True,
-                "pizza_type": pizza_type,
-                "confidence": round(conf, 2),
-                "status": status,
-                "reason": reason,
-                "ingredients_found": raw_ingredients
+                "report": f"Найдено пицц: {len(pizzas_result)}.",
+                "pizzas": pizzas_result
             }
-
         except Exception as e:
             return {
                 "success": False,
-                "status": "ERROR",
-                "reason": f"Ошибка обработки изображения: {str(e)}"
+                "report": "Ошибка обработки изображения.",
+                "reason": str(e),
+                "pizzas": []
             }
