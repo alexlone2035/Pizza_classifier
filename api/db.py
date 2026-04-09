@@ -1,10 +1,9 @@
 import time
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean as Bool, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Boolean as Bool, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 DATABASE_URL = "postgresql://pizza:pizza@db:5432/pizza_db"
 
-# ⏳ Ожидание запуска БД
 for i in range(10):
     try:
         engine = create_engine(DATABASE_URL)
@@ -25,37 +24,32 @@ class PizzaData(Base):
     id = Column(Integer, primary_key=True)
 
     success = Column(Bool)
-    pizza_type = Column(String)
-    confidence = Column(Float)
-    status = Column(String)
-    reason = Column(String)
+    report = Column(String)
+    pizzas = Column(JSON)
 
-    ingredients_found = Column(JSON)
-
-    # 🔥 Новые поля
     chat_id = Column(String)
-    feedback = Column(String)  # correct / wrong
+    feedback = Column(String)
+
+    image = Column(String)
 
 
 Base.metadata.create_all(engine)
 
 
-def save_to_db(result):
+def save_to_db(result, image_base64):
     db = SessionLocal()
 
     record = PizzaData(
         success=result.get("success"),
-        pizza_type=result.get("pizza_type"),
-        confidence=result.get("confidence"),
-        status=result.get("status"),
-        reason=result.get("reason"),
-        ingredients_found=result.get("ingredients_found"),
-        chat_id=result.get("chat_id")
+        report=result.get("report"),
+        pizzas=result.get("pizzas"),
+        chat_id=result.get("chat_id"),
+        image=image_base64
     )
 
     db.add(record)
     db.commit()
-    db.refresh(record)  # получаем id
+    db.refresh(record)
 
     record_id = record.id
 
