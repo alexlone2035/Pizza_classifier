@@ -1,21 +1,27 @@
-import time
+import os
 from sqlalchemy import create_engine, Column, Integer, String, Boolean as Bool, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "postgresql://pizza:pizza@db:5432/pizza_db"
-
-for i in range(10):
-    try:
-        engine = create_engine(DATABASE_URL)
-        engine.connect()
-        print("DB connected!")
-        break
-    except Exception:
-        print("DB not ready, retrying...")
-        time.sleep(2)
-
-SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
+
+engine = None
+SessionLocal = None
+
+
+def init_db():
+    global engine, SessionLocal
+
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL",
+        "postgresql://pizza:pizza@db:5432/pizza_db"
+    )
+
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(bind=engine)
+
+    
+    if "sqlite" not in DATABASE_URL:
+        Base.metadata.create_all(engine)
 
 
 class PizzaData(Base):
@@ -29,15 +35,18 @@ class PizzaData(Base):
 
     chat_id = Column(String)
     feedback = Column(String)
-
     image = Column(String)
 
 
-Base.metadata.create_all(engine)
+def save_to_db(result, image_base64, db=None):
+    if db is None:
+        if SessionLocal is None:
+            raise RuntimeError("DB is not initialized. Call init_db()")
 
-
-def save_to_db(result, image_base64):
-    db = SessionLocal()
+        db = SessionLocal()
+        close = True
+    else:
+        close = False
 
     record = PizzaData(
         success=result.get("success"),
@@ -51,7 +60,7 @@ def save_to_db(result, image_base64):
     db.commit()
     db.refresh(record)
 
-    record_id = record.id
+    if close:
+        db.close()
 
-    db.close()
-    return record_id
+    return record.id

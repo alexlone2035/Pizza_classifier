@@ -3,8 +3,8 @@ import httpx
 import os
 import base64
 
-from db import save_to_db, SessionLocal, PizzaData
-
+from db import save_to_db, init_db, SessionLocal, PizzaData
+init_db()
 API_KEY = os.getenv("API_KEY")
 
 if not API_KEY:
