@@ -98,25 +98,39 @@ async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
 
 # --- ОБНОВЛЕННЫЙ FORMAT_RESPONSE ---
 def format_response(api_result: dict, image_bytes: bytes = None) -> tuple:
-    """Возвращает (текст_ответа, байты_изображения_с_боксами)"""
+    """
+    Возвращает кортеж: (строка_текста, байты_изображения)
+    """
+    # 1. Обработка ошибки сервера
     if not api_result.get("success"):
-        return "❌ Ошибка: Сервер не смог обработать изображение.", None
+        reason = api_result.get("reason", "Сервер не смог обработать изображение.")
+        return f"❌ Ошибка: {reason}", None
 
+    # 2. Формируем текстовый отчет
     report = api_result.get("report", "Обработка завершена")
     lines = [f"📊 *{report}*", ""]
     pizzas = api_result.get("pizzas", [])
 
     if not pizzas:
         lines.append("Пиццы на фото не найдены.")
-        processed_image = image_bytes  # Возвращаем оригинал, если ничего не нашли
+        # Если пицц нет, возвращаем оригинальное фото (или None, если байты не пришли)
+        processed_image = image_bytes
     else:
         for i, pizza in enumerate(pizzas, 1):
             p_type = pizza.get("pizza_type", "unknown")
             conf = pizza.get("confidence", 0) * 100
             lines.append(f"🍕 *Объект #{i}: {p_type.capitalize()}* ({conf:.1f}%)")
 
-        # Вызываем отрисовку, если переданы байты
-        processed_image = draw_bounding_boxes(image_bytes, pizzas) if image_bytes else None
+        # 3. Пытаемся отрисовать боксы
+        if image_bytes:
+            try:
+                processed_image = draw_bounding_boxes(image_bytes, pizzas)
+            except Exception as e:
+                logger.error(f"Ошибка при отрисовке боксов: {e}")
+                # Если рисование упало, возвращаем хотя бы оригинал
+                processed_image = image_bytes
+        else:
+            processed_image = None
 
     return "\n".join(lines), processed_image
 
@@ -130,11 +144,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     msg = await update.message.reply_text("⏳ Нейросеть думает...")
 
+    # 1. Получаем фото и переводим в байты
     photo_file = await update.message.photo[-1].get_file()
     async with aiohttp.ClientSession() as session:
         async with session.get(photo_file.file_path) as resp:
             image_bytes = await resp.read()
 
+    # 2. Запрос к API
     api_result = await send_to_model_api(image_bytes, user_id)
 
     if not api_result.get("success"):
@@ -142,7 +158,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(f"❌ {error_msg}")
         return
 
-    text = format_response(api_result)
+    # !!! ВАЖНО: Распаковываем кортеж в ДВЕ переменные !!!
+    # Мы передаем image_bytes вторым аргументом, чтобы draw_bounding_boxes сработал
+    text, processed_image = format_response(api_result, image_bytes)
 
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Верно", callback_data=f"fb:correct:{user_id}"),
@@ -151,9 +169,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_sessions[user_id] = {"api_result": api_result, "feedback_given": False}
 
+    # Удаляем сообщение "⏳ Нейросеть думает..."
     await msg.delete()
-    await update.message.reply_text(f"🍕 Результат:\n{text}", reply_markup=keyboard)
 
+    # 3. Логика отправки результата
+    if processed_image:
+        # Если картинка есть — шлем ФОТО с подписью
+        await update.message.reply_photo(
+            photo=processed_image,
+            caption=f"🍕 Результат: {text}",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+    else:
+        # Если картинки нет (например, ошибка в Pillow) — шлем только ТЕКСТ
+        await update.message.reply_text(
+            f"🍕 Результат: {text}",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
 
 async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
