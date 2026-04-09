@@ -96,7 +96,7 @@ class PizzaInspector:
                         problematic_ingredients.append(meat)
                 if problematic_ingredients:
                     status = "NOT_OK"
-                    reason = f"Брак! Найдено мясо в сырной/постной пицце: {', '.join(problematic_ingredients)}"
+                    reason = f"{', '.join(problematic_ingredients)}"
 
             elif required_ingredients == ["any"]:
                 pass
@@ -108,7 +108,7 @@ class PizzaInspector:
 
                 if problematic_ingredients:
                     status = "NOT_OK"
-                    reason = f"Брак! Найдены чужие ингредиенты: {', '.join(problematic_ingredients)}"
+                    reason = f"{', '.join(problematic_ingredients)}"
 
             return {
                 "success": True,
