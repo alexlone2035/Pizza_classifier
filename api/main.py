@@ -1,9 +1,10 @@
 from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Form
 import httpx
 import os
+import base64
 
-from db import save_to_db, SessionLocal, PizzaData
-
+from db import save_to_db, init_db, SessionLocal, PizzaData
+init_db()
 API_KEY = os.getenv("API_KEY")
 
 if not API_KEY:
@@ -20,18 +21,17 @@ async def predict(
     chat_id: str = Form(...),
     authorization: str = Header(None)
 ):
-    # 🔐 Проверка API ключа
     if not authorization or authorization != f"Bearer {API_KEY}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     contents = await file.read()
 
-    # ⚠️ Ограничение размера файла (5MB)
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large")
 
+    image_base64 = base64.b64encode(contents).decode("utf-8")
+
     try:
-        # 🚀 Асинхронный запрос к ML сервису
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 ML_API_URL,
@@ -52,13 +52,14 @@ async def predict(
             detail="ML service unavailable"
         )
 
-    # ❗ Если модель вернула ошибку — не сохраняем
     if not result.get("success", True):
         return result
-
-    # 💾 Сохраняем в БД
+    
     try:
-        record_id = save_to_db({**result, "chat_id": chat_id})
+        record_id = save_to_db(
+            {**result, "chat_id": chat_id},
+            image_base64
+        )
         result["prediction_id"] = record_id
     except Exception as e:
         print("DB error:", e)
@@ -71,7 +72,6 @@ async def feedback(
     data: dict,
     authorization: str = Header(None)
 ):
-    # 🔐 Проверка API ключа
     if not authorization or authorization != f"Bearer {API_KEY}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -96,8 +96,3 @@ async def feedback(
         db.close()
 
     return {"status": "ok"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)

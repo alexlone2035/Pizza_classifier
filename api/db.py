@@ -1,22 +1,27 @@
-import time
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean as Bool, JSON
+import os
+from sqlalchemy import create_engine, Column, Integer, String, Boolean as Bool, JSON
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "postgresql://pizza:pizza@db:5432/pizza_db"
-
-# ⏳ Ожидание запуска БД
-for i in range(10):
-    try:
-        engine = create_engine(DATABASE_URL)
-        engine.connect()
-        print("DB connected!")
-        break
-    except Exception:
-        print("DB not ready, retrying...")
-        time.sleep(2)
-
-SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
+
+engine = None
+SessionLocal = None
+
+
+def init_db():
+    global engine, SessionLocal
+
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL",
+        "postgresql://pizza:pizza@db:5432/pizza_db"
+    )
+
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(bind=engine)
+
+    
+    if "sqlite" not in DATABASE_URL:
+        Base.metadata.create_all(engine)
 
 
 class PizzaData(Base):
@@ -25,39 +30,37 @@ class PizzaData(Base):
     id = Column(Integer, primary_key=True)
 
     success = Column(Bool)
-    pizza_type = Column(String)
-    confidence = Column(Float)
-    status = Column(String)
-    reason = Column(String)
+    report = Column(String)
+    pizzas = Column(JSON)
 
-    ingredients_found = Column(JSON)
-
-    # 🔥 Новые поля
     chat_id = Column(String)
-    feedback = Column(String)  # correct / wrong
+    feedback = Column(String)
+    image = Column(String)
 
 
-Base.metadata.create_all(engine)
+def save_to_db(result, image_base64, db=None):
+    if db is None:
+        if SessionLocal is None:
+            raise RuntimeError("DB is not initialized. Call init_db()")
 
-
-def save_to_db(result):
-    db = SessionLocal()
+        db = SessionLocal()
+        close = True
+    else:
+        close = False
 
     record = PizzaData(
         success=result.get("success"),
-        pizza_type=result.get("pizza_type"),
-        confidence=result.get("confidence"),
-        status=result.get("status"),
-        reason=result.get("reason"),
-        ingredients_found=result.get("ingredients_found"),
-        chat_id=result.get("chat_id")
+        report=result.get("report"),
+        pizzas=result.get("pizzas"),
+        chat_id=result.get("chat_id"),
+        image=image_base64
     )
 
     db.add(record)
     db.commit()
-    db.refresh(record)  # получаем id
+    db.refresh(record)
 
-    record_id = record.id
+    if close:
+        db.close()
 
-    db.close()
-    return record_id
+    return record.id
