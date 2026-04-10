@@ -28,8 +28,10 @@ image	   |   String   |    Изображение (base64)
 DBeaver
 
 Параметры подключения
+```
 Host: localhost
 Port: 5432
 Database: значение POSTGRES_DB из .env
 User: значение POSTGRES_USER из .env
 Password: значение POSTGRES_PASSWORD из .env
+```

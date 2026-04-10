@@ -86,7 +86,7 @@ class PizzaClassifier:
         print(f"ResNet: Обучение завершено. Веса сохранены в {save_path}")
 
     def load_weights(self, weights_path="classifier.pth"):
-        checkpoint = torch.load(weights_path, map_location=self.device)
+        checkpoint = torch.load(weights_path, map_location=self.device, weights_only=False)
         self.classes = checkpoint['classes']
         self.model.fc = nn.Linear(self.model.fc.in_features, len(self.classes))
         self.model.load_state_dict(checkpoint['state_dict'])
