@@ -57,9 +57,9 @@ pip install python-telegram-bot aiohttp Pillow python-dotenv
 
 -Создайте файл .env в корневой папке и добавьте туда свои данные:
 ```env
-TELEGRAM_BOT_TOKEN=ваш_токен_бота
-API_BASE_URL=http://ваш_адрес_api:порт
-API_KEY=ваш_секретный_ключ_авторизации
+TELEGRAM_BOT_TOKEN=8649021426:AAGeoA7w5fcztcQ6ShPnc0-gcN-JDCLCwQg
+API_BASE_URL=http://127.0.0.1:8000
+API_KEY=8f2c9d7e4a6b1c3d5e9f0a7b2c8d6e1f9a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d
 ```
 
 -Запустите бота:
