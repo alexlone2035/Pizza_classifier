@@ -3,8 +3,10 @@ import httpx
 import os
 import base64
 
-from db import save_to_db, init_db, SessionLocal, PizzaData
+from db import save_to_db, init_db
+
 init_db()
+
 API_KEY = os.getenv("API_KEY")
 
 if not API_KEY:
@@ -37,24 +39,17 @@ async def predict(
                 ML_API_URL,
                 files={"file": ("image.jpg", contents, "image/jpeg")}
             )
-
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=500,
-                detail=f"ML service error: {response.status_code}"
-            )
-
         result = response.json()
 
     except httpx.RequestError:
-        raise HTTPException(
-            status_code=500,
-            detail="ML service unavailable"
-        )
+        result = {
+            "success": False,
+            "report": "ML service unavailable",
+            "pizzas": []
+        }
 
-    if not result.get("success", True):
-        return result
-    
+    # ❌ НЕТ draw_boxes больше
+
     try:
         record_id = save_to_db(
             {**result, "chat_id": chat_id},
@@ -65,34 +60,3 @@ async def predict(
         print("DB error:", e)
 
     return result
-
-
-@app.post("/feedback")
-async def feedback(
-    data: dict,
-    authorization: str = Header(None)
-):
-    if not authorization or authorization != f"Bearer {API_KEY}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    prediction_id = data.get("original_result", {}).get("prediction_id")
-    verdict = data.get("verdict")
-
-    if not prediction_id:
-        return {"error": "prediction_id not found"}
-
-    db = SessionLocal()
-
-    try:
-        record = db.query(PizzaData).filter(PizzaData.id == prediction_id).first()
-
-        if not record:
-            return {"error": "record not found"}
-
-        record.feedback = verdict
-        db.commit()
-
-    finally:
-        db.close()
-
-    return {"status": "ok"}
