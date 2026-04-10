@@ -3,8 +3,8 @@ import json
 import torch
 import numpy as np
 import random
-from pizza_classifier import PizzaClassifier
-from pizza_detector import PizzaDetector
+from Classifier_model.pizza_classifier import PizzaClassifier
+from Detection_model.pizza_detector import PizzaDetector
 from pizza_inspector import PizzaInspector
 
 
@@ -26,8 +26,8 @@ if __name__ == "__main__":
     classifier = PizzaClassifier()
     detector = PizzaDetector()
 
-    classifier.load_weights("classifier.pth")
-    detector.load_weights("yolo_pizza_best.pt")
+    classifier.load_weights("Classifier_model/classifier.pth")
+    detector.load_weights("Detection_model/yolo_best.pt")
     inspector = PizzaInspector(classifier, detector)
 
     test_dir = "../test_photos"

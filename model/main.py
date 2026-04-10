@@ -3,8 +3,8 @@ import os
 import shutil
 import logging
 
-from pizza_classifier import PizzaClassifier
-from pizza_detector import PizzaDetector
+from Classifier_model.pizza_classifier import PizzaClassifier
+from Detection_model.pizza_detector import PizzaDetector
 from pizza_inspector import PizzaInspector
 
 # логирование
@@ -17,8 +17,8 @@ app = FastAPI()
 classifier = PizzaClassifier()
 detector = PizzaDetector()
 
-classifier.load_weights("classifier.pth")
-detector.load_weights("yolo_best.pt")
+classifier.load_weights("Classifier_model/classifier.pth")
+detector.load_weights("Detection_model/yolo_best.pt")
 
 model = PizzaInspector(classifier, detector)
 

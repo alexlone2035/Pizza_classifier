@@ -37,9 +37,6 @@ services:
     container_name: model
     ports:
       - "9000:9000"
-    volumes:
-      - ./classifier_dataset:/model/classifier_dataset
-      - ./pizza_dataset:/model/pizza_dataset
 
 volumes:
   pgdata:
