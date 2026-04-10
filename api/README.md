@@ -5,17 +5,23 @@ Database (PostgreSQL)
 Сервис реализован с использованием:
 
 PostgreSQL
+
 SQLAlchemy
+
 Структура таблицы
+
 Таблица: pizza_data
-Поле	        |  Тип	       |      Описание
-id	          |  Integer	   |      Уникальный ID записи
-success	      |  Boolean	   |      Успешность обработки
-report	      |  String	     |    Текстовый отчёт
-pizzas	      |  JSON	       |    Данные о найденных пиццах
-chat_id	      |  String	     |    ID пользователя (Telegram)
-feedback	    |  String	     |    Оценка пользователя (correct / wrong)
-image	String	|  Изображение |     (base64)
+```
+Поле	   |    Тип     |    Описание
+id         |   Integer  |    Уникальный ID записи
+success    |   Boolean  |    Успешность обработки
+report     |   String   |    Текстовый отчёт
+pizzas	   |    JSON    |    Данные о найденных пиццах
+chat_id	   |   String   |    ID пользователя (Telegram)
+feedback   |   String   |    Оценка пользователя (correct / wrong)
+image	   |   String   |    Изображение (base64)
+```
+
 Подключение к базе
 
 Для работы с БД можно использовать любой клиент, например
