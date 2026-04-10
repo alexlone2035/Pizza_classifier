@@ -2,9 +2,8 @@ import os
 import logging
 import aiohttp
 import io
-import cv2
-import numpy as np
 
+from PIL import Image, ImageDraw, ImageFont
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -24,6 +23,7 @@ API_KEY = os.getenv("API_KEY")
 PREDICT_URL = f"{API_BASE_URL}/predict"
 FEEDBACK_URL = f"{API_BASE_URL}/feedback"
 
+
 async def send_to_api(image_bytes, user_id):
     headers = {"Authorization": f"Bearer {API_KEY}"}
 
@@ -36,18 +36,27 @@ async def send_to_api(image_bytes, user_id):
             return await resp.json()
 
 
+
+
 def get_color(conf):
     if conf < 0.5:
-        return (0, 0, 255)
+        return (255, 0, 0)      
     elif conf < 0.8:
-        return (0, 255, 255)
+        return (255, 200, 0)   
     else:
-        return (0, 255, 0)
+        return (0, 200, 0)   
+
+
 
 
 def draw_boxes(image_bytes: bytes, pizzas: list) -> bytes:
-    np_arr = np.frombuffer(image_bytes, np.uint8)
-    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    try:
+        font = ImageFont.load_default()
+    except:
+        font = None
 
     for pizza in pizzas:
         x1, y1, x2, y2 = pizza["box"]
@@ -56,19 +65,29 @@ def draw_boxes(image_bytes: bytes, pizzas: list) -> bytes:
 
         color = get_color(conf)
 
-        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(
-            img,
-            label,
-            (x1, y1 - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            color,
-            2
+        # рамка
+        draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+
+        # размер текста
+        text_bbox = draw.textbbox((0, 0), label, font=font)
+        text_w = text_bbox[2] - text_bbox[0]
+        text_h = text_bbox[3] - text_bbox[1]
+
+        # фон под текст
+        text_y = max(y1 - text_h - 4, 0)
+        draw.rectangle(
+            [x1, text_y, x1 + text_w + 6, text_y + text_h + 4],
+            fill=color
         )
 
-    _, buffer = cv2.imencode(".jpg", img)
-    return buffer.tobytes()
+        # текст
+        draw.text((x1 + 3, text_y + 2), label, fill="white", font=font)
+
+    output = io.BytesIO()
+    img.save(output, format="JPEG", quality=90)
+    return output.getvalue()
+
+
 
 
 def format_response(data):
@@ -81,6 +100,7 @@ def format_response(data):
         text += f"\n{i}. {p['pizza_type']} ({p['confidence']})"
 
     return text
+
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -110,6 +130,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await msg.delete()
 
+    # 🎨 рисуем bbox через Pillow
     if result.get("pizzas"):
         img = draw_boxes(image_bytes, result["pizzas"])
         bio = io.BytesIO(img)
@@ -122,6 +143,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     else:
         await update.message.reply_text(text, reply_markup=keyboard)
+
 
 
 async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -144,6 +166,8 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.edit_message_reply_markup(None)
     await query.message.reply_text("Спасибо за отзыв!")
+
+
 
 
 def main():
