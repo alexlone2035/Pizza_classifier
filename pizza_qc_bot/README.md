@@ -41,9 +41,28 @@ Telegram-бот для автоматического распознавания
 Установка и запуск:
 
 -Клонируйте репозиторий:
-
 ```bash
 git clone https://github.com/ваш_логин/название_проекта.git
 cd название_проекта
 ```
+
 -Установите зависимости:
+```bash
+pip install -r requirements.txt
+```
+Если файла requirements.txt еще нет, установите вручную:
+```bash
+pip install python-telegram-bot aiohttp Pillow python-dotenv
+```
+
+-Создайте файл .env в корневой папке и добавьте туда свои данные:
+```env
+TELEGRAM_BOT_TOKEN=ваш_токен_бота
+API_BASE_URL=http://ваш_адрес_api:порт
+API_KEY=ваш_секретный_ключ_авторизации
+```
+
+-Запустите бота:
+```bash
+python bot.py
+```
