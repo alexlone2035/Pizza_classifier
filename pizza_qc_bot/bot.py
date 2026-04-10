@@ -35,18 +35,13 @@ async def send_to_api(image_bytes, user_id):
         async with session.post(PREDICT_URL, data=form, headers=headers) as resp:
             return await resp.json()
 
-
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Привет! Пришли фото пиццы, и я определю её вид.")
-
-
 def get_color(conf):
     if conf < 0.5:
-        return (255, 0, 0)      
+        return (255, 0, 0)
     elif conf < 0.8:
-        return (255, 200, 0)   
+        return (255, 200, 0)
     else:
-        return (0, 200, 0)   
+        return (0, 200, 0)
 
 
 
@@ -99,16 +94,23 @@ def format_response(data):
     text = f"📋 {data.get('report')}\n"
 
     for i, p in enumerate(data.get("pizzas", []), 1):
-        text += f"\n{i}. {p['pizza_type']} ({p['confidence']})"
+        text += f"\n{i}. {p['pizza_type']} (Уверенность модели - {p['confidence']})"
 
     return text
 
 
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Получена команда /start")
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="👋 Привет! Пришли фото пиццы, и я определю её вид."
+    )
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    msg = await update.message.reply_text("⏳ Обрабатываю...")
+    msg = await update.message.reply_text("⏳ Нейросеть думает...")
 
     photo = await update.message.photo[-1].get_file()
 
@@ -126,8 +128,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prediction_id = result.get("prediction_id")
 
     keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅", callback_data=f"fb:correct:{prediction_id}"),
-        InlineKeyboardButton("❌", callback_data=f"fb:wrong:{prediction_id}")
+        InlineKeyboardButton("✅ Верно", callback_data=f"fb:correct:{prediction_id}"),
+        InlineKeyboardButton("❌ Не верно", callback_data=f"fb:wrong:{prediction_id}")
     ]])
 
     await msg.delete()
@@ -177,8 +179,7 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CallbackQueryHandler(feedback))
-
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
