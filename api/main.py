@@ -3,9 +3,9 @@ import httpx
 import os
 import base64
 
-from db import save_to_db, init_db, SessionLocal, PizzaData
+import db
 
-init_db()
+db.init_db()
 
 API_KEY = os.getenv("API_KEY")
 
@@ -49,7 +49,7 @@ async def predict(
         }
 
     try:
-        record_id = save_to_db(
+        record_id = db.save_to_db(
             {**result, "chat_id": chat_id},
             image_base64
         )
@@ -75,18 +75,18 @@ async def feedback(
     if not prediction_id:
         raise HTTPException(status_code=400, detail="prediction_id missing")
 
-    db = SessionLocal()
+    db_ = db.SessionLocal()
 
     try:
-        record = db.query(PizzaData).filter(PizzaData.id == prediction_id).first()
+        record = db_.query(db.PizzaData).filter(db.PizzaData.id == prediction_id).first()
 
         if not record:
             raise HTTPException(status_code=404, detail="record not found")
 
         record.feedback = verdict
-        db.commit()
+        db_.commit()
 
     finally:
-        db.close()
+        db_.close()
 
     return {"status": "ok"}
