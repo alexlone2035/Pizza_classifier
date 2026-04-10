@@ -3,7 +3,7 @@ import httpx
 import os
 import base64
 
-from db import save_to_db, init_db
+from db import save_to_db, init_db, SessionLocal, PizzaData
 
 init_db()
 
@@ -48,8 +48,6 @@ async def predict(
             "pizzas": []
         }
 
-    # ❌ НЕТ draw_boxes больше
-
     try:
         record_id = save_to_db(
             {**result, "chat_id": chat_id},
@@ -60,3 +58,35 @@ async def predict(
         print("DB error:", e)
 
     return result
+
+
+
+@app.post("/feedback")
+async def feedback(
+    data: dict,
+    authorization: str = Header(None)
+):
+    if not authorization or authorization != f"Bearer {API_KEY}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    prediction_id = data.get("prediction_id")
+    verdict = data.get("verdict")
+
+    if not prediction_id:
+        raise HTTPException(status_code=400, detail="prediction_id missing")
+
+    db = SessionLocal()
+
+    try:
+        record = db.query(PizzaData).filter(PizzaData.id == prediction_id).first()
+
+        if not record:
+            raise HTTPException(status_code=404, detail="record not found")
+
+        record.feedback = verdict
+        db.commit()
+
+    finally:
+        db.close()
+
+    return {"status": "ok"}
