@@ -1,6 +1,8 @@
 import os
 import logging
 import aiohttp
+import io
+from PIL import Image, ImageDraw
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -28,6 +30,43 @@ FEEDBACK_URL = f"{API_BASE_URL}/feedback"
 
 user_sessions: dict = {}
 
+
+def draw_bounding_boxes(image_bytes: bytes, pizzas: list) -> bytes:
+    """Рисует цветные bounding boxes на изображении"""
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    W, H = img.size
+
+    TYPE_COLORS = {
+        "pepperoni": "#FF3333",
+        "margarita": "#FF8800",
+        "four_cheese": "#FFD700",
+        "unknown": "#00FF00",
+    }
+
+    for pizza in pizzas:
+        box = pizza.get("box")
+        if not box or len(box) != 4:
+            continue
+
+        x_min, y_min, x_max, y_max = box
+        pizza_type = pizza.get("pizza_type", "unknown")
+        color = TYPE_COLORS.get(pizza_type, TYPE_COLORS["unknown"])
+
+        # Рисуем рамку
+        draw.rectangle([x_min, y_min, x_max, y_max], outline=color, width=5)
+
+        # Текст (Тип и уверенность)
+        conf = pizza.get("confidence", 0) * 100
+        label = f"{pizza_type.capitalize()} ({conf:.0f}%)"
+        label_y = max(y_min - 25, 0)
+        # Фон под текст для читаемости
+        draw.rectangle([x_min, label_y, x_min + len(label) * 9, label_y + 20], fill=color)
+        draw.text((x_min + 5, label_y + 2), label, fill="white")
+
+    output = io.BytesIO()
+    img.save(output, format="JPEG", quality=90)
+    return output.getvalue()
 
 async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
     headers = {"Authorization": f"Bearer {API_KEY}"}
@@ -57,57 +96,43 @@ async def send_to_model_api(image_bytes: bytes, user_id: int) -> dict:
             return {"success": False, "reason": f"Ошибка соединения: {str(e)}"}
 
 
-def format_response(api_result: dict) -> str:
-    PIZZA_MAP = {
-        "alfredo": "Альфредо", "bavarskaya": "Баварская", "bolshayabonanza": "Большая Бонанза",
-        "chedderchizburger": "Чеддер Чизбургер", "cheddermeksikan": "Чеддер Мексикан",
-        "chetyresyra": "Четыре Сыра", "chizburger": "Чизбургер", "gavayskaya": "Гавайская",
-        "grushabbq": "Груша BBQ", "kaprichioza": "Капричоза", "klubnikaizefir": "Клубника и Зефир",
-        "kosmicheskiyset23": "Космический сет 23", "krem_chizsgribami": "Крем-чиз с грибами",
-        "lyubimayadedamoroza": "Любимая Деда Мороза", "lyubimayakarbonara": "Любимая Карбонара",
-        "lyubimayapapinapitstsa": "Любимая Папина Пицца", "malenkayaitaliya": "Маленькая Италия",
-        "margarita": "Маргарита", "meksikanskaya": "Мексиканская", "miksgrin": "Микс Грин",
-        "myasnaya": "Мясная", "myasnoebarbekyu": "Мясное Барбекю", "novogodnyaya": "Новогодняя",
-        "palochki": "Палочки", "papamiks": "Папа Микс", "pepperoni": "Пепперони",
-        "pepperonigrin": "Пепперони Грин", "pitstsa8syrovnew": "Пицца 8 Сыров (Новая)",
-        "postnaya": "Постная", "rozhdestvenskaya": "Рождественская", "sananasomibekonom": "С ананасом и беконом",
-        "serdtsepepperoni_4syra": "Сердце Пепперони и 4 Сыра",
-        "serdtsetsyplenokbarbekyu_pepperoni": "Сердце Цыпленок Барбекю и Пепперони",
-        "sgrusheyibekonom": "С грушей и беконом", "sgrusheyigolubymsyrom": "С грушей и голубым сыром",
-        "slivochnayaskrevetkami": "Сливочная с креветками", "superpapa": "Супер Papa",
-        "syrnaya": "Сырная", "tomatnayaskrevetkami": "Томатная с креветками",
-        "tsyplenokbarbekyu": "Цыпленок Барбекю", "tsyplenokflorentina": "Цыпленок Флорентина",
-        "tsyplenokgrin": "Цыпленок Грин", "tsyplenokkordonblyu": "Цыпленок Кордон Блю",
-        "tsyplenokkrench": "Цыпленок Кренч", "ulybka": "Улыбка", "vegetarianskaya": "Вегетарианская",
-        "vetchinaibekon": "Ветчина и бекон", "vetchinaigriby": "Ветчина и грибы"
-    }
+# --- ОБНОВЛЕННЫЙ FORMAT_RESPONSE ---
+def format_response(api_result: dict, image_bytes: bytes = None) -> tuple:
+    """
+    Возвращает кортеж: (строка_текста, байты_изображения)
+    """
+    # 1. Обработка ошибки сервера
+    if not api_result.get("success"):
+        reason = api_result.get("reason", "Сервер не смог обработать изображение.")
+        return f"❌ Ошибка: {reason}", None
 
-    INGREDIENTS_MAP = {
-        'pepperoni': 'Пепперони', 'chicken': 'Курица', 'mushroom': 'Грибы',
-        'tomato': 'Томаты', 'pineapple': 'Ананас', 'bacon': 'Бекон',
-        'ham': 'Ветчина', 'shrimp': 'Креветки', 'cheese': 'Сыр',
-        'olive': 'Оливки', 'pepper': 'Перец', 'jalapeno': 'Халапеньо', 'onion': 'Лук'
-    }
+    # 2. Формируем текстовый отчет
+    report = api_result.get("report", "Обработка завершена")
+    lines = [f"📊 *{report}*", ""]
+    pizzas = api_result.get("pizzas", [])
 
-    raw_type = api_result.get('pizza_type', '').lower().strip()
-    pizza_name = PIZZA_MAP.get(raw_type, raw_type.replace('_', ' ').capitalize())
-
-    status = api_result.get('status', '')
-    status_icon = "✅" if status == "OK" else "❌"
-
-    raw_reason = api_result.get('reason', '')
-    if isinstance(raw_reason, list):
-        translated_list = [INGREDIENTS_MAP.get(r.lower(), r) for r in raw_reason]
-        reason_text = ", ".join(translated_list)
+    if not pizzas:
+        lines.append("Пиццы на фото не найдены.")
+        # Если пицц нет, возвращаем оригинальное фото (или None, если байты не пришли)
+        processed_image = image_bytes
     else:
-        reason_text = INGREDIENTS_MAP.get(str(raw_reason).lower(), raw_reason)
+        for i, pizza in enumerate(pizzas, 1):
+            p_type = pizza.get("pizza_type", "unknown")
+            conf = pizza.get("confidence", 0) * 100
+            lines.append(f"🍕 *Объект #{i}: {p_type.capitalize()}* ({conf:.1f}%)")
 
-    if status != "OK" and reason_text:
-        reason_full = f"Уважаемый клиент, Ваша проблема заключается в следующих ингредиентах: {reason_text}"
-    else:
-        reason_full = f"Причина: {reason_text}" if reason_text else ""
+        # 3. Пытаемся отрисовать боксы
+        if image_bytes:
+            try:
+                processed_image = draw_bounding_boxes(image_bytes, pizzas)
+            except Exception as e:
+                logger.error(f"Ошибка при отрисовке боксов: {e}")
+                # Если рисование упало, возвращаем хотя бы оригинал
+                processed_image = image_bytes
+        else:
+            processed_image = None
 
-    return f"*{pizza_name}*\nСтатус: {status_icon} {status}\n{reason_full}"
+    return "\n".join(lines), processed_image
 
 
 
@@ -119,11 +144,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     msg = await update.message.reply_text("⏳ Нейросеть думает...")
 
+    # 1. Получаем фото и переводим в байты
     photo_file = await update.message.photo[-1].get_file()
     async with aiohttp.ClientSession() as session:
         async with session.get(photo_file.file_path) as resp:
             image_bytes = await resp.read()
 
+    # 2. Запрос к API
     api_result = await send_to_model_api(image_bytes, user_id)
 
     if not api_result.get("success"):
@@ -131,7 +158,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(f"❌ {error_msg}")
         return
 
-    text = format_response(api_result)
+    # !!! ВАЖНО: Распаковываем кортеж в ДВЕ переменные !!!
+    # Мы передаем image_bytes вторым аргументом, чтобы draw_bounding_boxes сработал
+    text, processed_image = format_response(api_result, image_bytes)
 
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Верно", callback_data=f"fb:correct:{user_id}"),
@@ -140,9 +169,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_sessions[user_id] = {"api_result": api_result, "feedback_given": False}
 
+    # Удаляем сообщение "⏳ Нейросеть думает..."
     await msg.delete()
-    await update.message.reply_text(f"🍕 Результат:\n{text}", reply_markup=keyboard)
 
+    # 3. Логика отправки результата
+    if processed_image:
+        # Если картинка есть — шлем ФОТО с подписью
+        await update.message.reply_photo(
+            photo=processed_image,
+            caption=f"🍕 Результат: {text}",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+    else:
+        # Если картинки нет (например, ошибка в Pillow) — шлем только ТЕКСТ
+        await update.message.reply_text(
+            f"🍕 Результат: {text}",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
 
 async def handle_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query

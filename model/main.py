@@ -4,7 +4,7 @@ import shutil
 import logging
 
 from pizza_classifier import PizzaClassifier
-from ingredient_detector import IngredientDetector
+from pizza_detector import PizzaDetector
 from pizza_inspector import PizzaInspector
 
 # логирование
@@ -15,7 +15,7 @@ app = FastAPI()
 
 # 🔥 загрузка моделей один раз
 classifier = PizzaClassifier()
-detector = IngredientDetector()
+detector = PizzaDetector()
 
 classifier.load_weights("classifier.pth")
 detector.load_weights("yolo_best.pt")
