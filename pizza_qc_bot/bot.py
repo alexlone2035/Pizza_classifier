@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, MessageHandler,
+    Application, CommandHandler, MessageHandler,
     CallbackQueryHandler, ContextTypes, filters
 )
 
@@ -38,7 +38,7 @@ async def send_to_api(image_bytes, user_id):
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Привет! Пришли фото пиццы, и я определю её вид.")
-    
+
 
 def get_color(conf):
     if conf < 0.5:
@@ -174,7 +174,7 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = Application.builder().token(TOKEN).build()
-
+    app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CallbackQueryHandler(feedback))
 
