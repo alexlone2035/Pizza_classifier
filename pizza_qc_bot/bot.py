@@ -36,7 +36,9 @@ async def send_to_api(image_bytes, user_id):
             return await resp.json()
 
 
-
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 Привет! Пришли фото пиццы, и я определю её вид.")
+    
 
 def get_color(conf):
     if conf < 0.5:
