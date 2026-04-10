@@ -87,12 +87,14 @@
 3. Деплой проекта
 
    В корне проекта создать файл .env, содержащий:
-`API_KEY="Ваш ключ"
+```
+API_KEY="Ваш ключ"
 TELEGRAM_BOT_TOKEN="Ваш токен"
 API_BASE_URL=http://api:8000
 POSTGRES_USER="Пользователь БД"
 POSTGRES_PASSWORD="Пароль от БД"
-POSTGRES_DB="Название БД"`
+POSTGRES_DB="Название БД"
+```
 
    Для запуска проекта на docker необходимо из корня проекта ввести консольную команду `docker-compose up --build`
    
