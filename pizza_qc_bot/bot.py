@@ -159,14 +159,15 @@ async def feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     headers = {"Authorization": f"Bearer {API_KEY}"}
 
     async with aiohttp.ClientSession() as session:
-        await session.post(
+        async with session.post(
             FEEDBACK_URL,
             json={
                 "prediction_id": int(prediction_id),
                 "verdict": verdict
             },
             headers=headers
-        )
+        ) as resp:
+            pass
 
     await query.edit_message_reply_markup(None)
     await query.message.reply_text("Спасибо за отзыв!")
